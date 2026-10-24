@@ -1,4 +1,4 @@
-import { getStore } from "@netlify/blobs";
+import { getStore, connectLambda } from "@netlify/blobs";
 import crypto from "node:crypto";
 const cors = {"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","Access-Control-Allow-Origin":"same-origin","Vary":"Cookie"};
 const json=(statusCode,body,headers={})=>({statusCode,headers:{...cors,...headers},body:JSON.stringify(body)});
@@ -6,7 +6,8 @@ const cookieName="tp_admin_session";
 function sign(value){return crypto.createHmac('sha256',process.env.SESSION_SECRET||'replace-this-secret-in-netlify').update(value).digest('hex')}
 function sessionToken(){const payload=Buffer.from(JSON.stringify({exp:Date.now()+8*60*60*1000,nonce:crypto.randomBytes(16).toString('hex')})).toString('base64url');return payload+'.'+sign(payload)}
 function validSession(event){const raw=(event.headers.cookie||event.headers.Cookie||'').split(';').map(s=>s.trim()).find(s=>s.startsWith(cookieName+'='))?.slice(cookieName.length+1);if(!raw)return false;const [p,s]=raw.split('.');if(!p||!s||!crypto.timingSafeEqual(Buffer.from(s.padEnd(64,'0').slice(0,64)),Buffer.from(sign(p))))return false;try{return JSON.parse(Buffer.from(p,'base64url').toString()).exp>Date.now()}catch{return false}}
-export default async (event)=>{
+export const handler = async (event)=>{
+ connectLambda(event);
  if(event.httpMethod==='OPTIONS')return {statusCode:204,headers:{'Access-Control-Allow-Origin':'same-origin','Access-Control-Allow-Headers':'Content-Type','Access-Control-Allow-Methods':'POST,OPTIONS'}};
  if(event.httpMethod!=='POST')return json(405,{ok:false,error:'Method not allowed'});
  let body;try{body=JSON.parse(event.body||'{}')}catch{return json(400,{ok:false,error:'Invalid request'})}
